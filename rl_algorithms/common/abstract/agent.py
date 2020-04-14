@@ -219,6 +219,19 @@ class Agent(ABC):
                         if result_images is None
                         else np.vstack([result_images, result])
                     )
+                # Show action on result image
+                location = (50, 50)
+                font = cv2.FONT_HERSHEY_PLAIN  # hand-writing style font
+                fontScale = 1
+                cv2.putText(
+                    result_images,
+                    f"action: {action}",
+                    location,
+                    font,
+                    fontScale,
+                    (0, 0, 255),
+                    2,
+                )
 
                 cv2.imshow("result", result_images)
                 key = cv2.waitKey(0)
