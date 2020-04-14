@@ -194,7 +194,7 @@ class Agent(ABC):
                 ids = torch.LongTensor([[int(action)]]).cuda()
                 gcam.backward(ids=ids)
 
-                state = state[0].detach().cpu().numpy().astype(np.uint8)
+                state = state[-1].detach().cpu().numpy().astype(np.uint8)
                 state = np.transpose(state)
                 state = cv2.cvtColor(state, cv2.COLOR_GRAY2BGR)
                 state = cv2.resize(state, (150, 150), interpolation=cv2.INTER_LINEAR)
