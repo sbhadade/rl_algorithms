@@ -25,6 +25,10 @@ import torch.optim as optim
 import wandb
 
 from rl_algorithms.common.abstract.agent import Agent
+from rl_algorithms.common.buffer.lstm_prioritized_replay_buffer import (
+    LstmPrioritizedReplayBuffer,
+)
+from rl_algorithms.common.buffer.lstm_replay_buffer import LstmReplayBuffer
 from rl_algorithms.common.buffer.priortized_replay_buffer import PrioritizedReplayBuffer
 from rl_algorithms.common.buffer.replay_buffer import ReplayBuffer
 import rl_algorithms.common.helper_functions as common_utils
@@ -111,20 +115,40 @@ class DQNAgent(Agent):
         """Initialize non-common things."""
         if not self.args.test:
             # replay memory for a single step
-            self.memory = PrioritizedReplayBuffer(
-                self.hyper_params.buffer_size,
-                self.hyper_params.batch_size,
-                alpha=self.hyper_params.per_alpha,
-            )
-
-            # replay memory for multi-steps
-            if self.use_n_step:
-                self.memory_n = ReplayBuffer(
+            if self.hyper_params.use_rnn:
+                self.memory = LstmPrioritizedReplayBuffer(
                     self.hyper_params.buffer_size,
                     self.hyper_params.batch_size,
-                    n_step=self.hyper_params.n_step,
-                    gamma=self.hyper_params.gamma,
+                    self.hyper_params.sequence_size,
+                    self.hyper_params.overlap_size,
+                    alpha=self.hyper_params.per_alpha,
                 )
+
+                # replay memory for multi-steps
+                if self.use_n_step:
+                    self.memory_n = LstmReplayBuffer(
+                        self.hyper_params.buffer_size,
+                        self.hyper_params.batch_size,
+                        self.hyper_params.sequence_size,
+                        self.hyper_params.overlap_size,
+                        n_step=self.hyper_params.n_step,
+                        gamma=self.hyper_params.gamma,
+                    )
+            else:
+                self.memory = PrioritizedReplayBuffer(
+                    self.hyper_params.buffer_size,
+                    self.hyper_params.batch_size,
+                    alpha=self.hyper_params.per_alpha,
+                )
+
+                # replay memory for multi-steps
+                if self.use_n_step:
+                    self.memory_n = ReplayBuffer(
+                        self.hyper_params.buffer_size,
+                        self.hyper_params.batch_size,
+                        n_step=self.hyper_params.n_step,
+                        gamma=self.hyper_params.gamma,
+                    )
 
     # pylint: disable=attribute-defined-outside-init
     def _init_network(self):
@@ -173,14 +197,21 @@ class DQNAgent(Agent):
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, np.float64, bool, dict]:
         """Take an action and return the response of the env."""
         next_state, reward, done, info = self.env.step(action)
-
+        hidden_state = torch.ones([1, 1, 32], dtype=torch.float)
         if not self.args.test:
             # if the last state is not a terminal state, store done as false
             done_bool = (
                 False if self.episode_step == self.args.max_episode_steps else done
             )
 
-            transition = (self.curr_state, action, reward, next_state, done_bool)
+            transition = (
+                self.curr_state,
+                action,
+                hidden_state,
+                reward,
+                next_state,
+                done_bool,
+            )
             self._add_transition_to_memory(transition)
 
         return next_state, reward, done, info

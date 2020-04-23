@@ -11,8 +11,8 @@ agent = dict(
         gamma=0.99,
         tau=5e-3,
         buffer_size=int(1e4),  # openai baselines: int(1e4)
-        batch_size=32,  # openai baselines: 32
-        update_starts_from=int(1e4),  # openai baselines: int(1e4)
+        batch_size=12,  # openai baselines: 32
+        update_starts_from=int(13),  # openai baselines: int(1e4)
         multiple_update=1,  # multiple learning updates
         train_freq=4,  # in openai baselines, train_freq = 4
         gradient_clip=10.0,  # dueling: 10.0
@@ -22,8 +22,10 @@ agent = dict(
         per_alpha=0.6,  # openai baselines: 0.6
         per_beta=0.4,
         per_eps=1e-6,
-        # Use RNN
+        # rnn
         use_rnn=True,
+        sequence_size=8,
+        overlap_size=4,
         # Distributional Q function
         use_dist_q="DQN",
         # Epsilon Greedy
