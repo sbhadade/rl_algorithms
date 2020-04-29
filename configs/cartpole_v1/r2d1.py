@@ -37,7 +37,6 @@ agent = dict(
     head=dict(
         type="DuelingHead",
         configs=dict(
-            use_rnn=True,
             rnn_hidden_size=64,
             hidden_sizes=[128, 64],
             use_noisy_net=False,
