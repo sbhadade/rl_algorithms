@@ -25,10 +25,6 @@ import torch.optim as optim
 import wandb
 
 from rl_algorithms.common.abstract.agent import Agent
-from rl_algorithms.common.buffer.lstm_prioritized_replay_buffer import (
-    LstmPrioritizedReplayBuffer,
-)
-from rl_algorithms.common.buffer.lstm_replay_buffer import LstmReplayBuffer
 from rl_algorithms.common.buffer.priortized_replay_buffer import PrioritizedReplayBuffer
 from rl_algorithms.common.buffer.replay_buffer import ReplayBuffer
 import rl_algorithms.common.helper_functions as common_utils
@@ -115,40 +111,21 @@ class DQNAgent(Agent):
         """Initialize non-common things."""
         if not self.args.test:
             # replay memory for a single step
-            if self.hyper_params.use_rnn:
-                self.memory = LstmPrioritizedReplayBuffer(
+
+            self.memory = PrioritizedReplayBuffer(
+                self.hyper_params.buffer_size,
+                self.hyper_params.batch_size,
+                alpha=self.hyper_params.per_alpha,
+            )
+
+            # replay memory for multi-steps
+            if self.use_n_step:
+                self.memory_n = ReplayBuffer(
                     self.hyper_params.buffer_size,
                     self.hyper_params.batch_size,
-                    self.hyper_params.sequence_size,
-                    self.hyper_params.overlap_size,
-                    alpha=self.hyper_params.per_alpha,
+                    n_step=self.hyper_params.n_step,
+                    gamma=self.hyper_params.gamma,
                 )
-
-                # replay memory for multi-steps
-                if self.use_n_step:
-                    self.memory_n = LstmReplayBuffer(
-                        self.hyper_params.buffer_size,
-                        self.hyper_params.batch_size,
-                        self.hyper_params.sequence_size,
-                        self.hyper_params.overlap_size,
-                        n_step=self.hyper_params.n_step,
-                        gamma=self.hyper_params.gamma,
-                    )
-            else:
-                self.memory = PrioritizedReplayBuffer(
-                    self.hyper_params.buffer_size,
-                    self.hyper_params.batch_size,
-                    alpha=self.hyper_params.per_alpha,
-                )
-
-                # replay memory for multi-steps
-                if self.use_n_step:
-                    self.memory_n = ReplayBuffer(
-                        self.hyper_params.buffer_size,
-                        self.hyper_params.batch_size,
-                        n_step=self.hyper_params.n_step,
-                        gamma=self.hyper_params.gamma,
-                    )
 
     # pylint: disable=attribute-defined-outside-init
     def _init_network(self):
@@ -197,7 +174,6 @@ class DQNAgent(Agent):
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, np.float64, bool, dict]:
         """Take an action and return the response of the env."""
         next_state, reward, done, info = self.env.step(action)
-        hidden_state = torch.ones([1, 1, 32], dtype=torch.float)
         if not self.args.test:
             # if the last state is not a terminal state, store done as false
             done_bool = (
@@ -207,7 +183,6 @@ class DQNAgent(Agent):
             transition = (
                 self.curr_state,
                 action,
-                hidden_state,
                 reward,
                 next_state,
                 done_bool,
@@ -254,12 +229,20 @@ class DQNAgent(Agent):
                 v_max=self.head_cfg.configs.v_max,
                 atom_size=self.head_cfg.configs.atom_size,
             )
-        else:
+        elif self.hyper_params.use_dist_q == "DQN":
             return dqn_utils.calculate_dqn_loss(
                 model=self.dqn,
                 target_model=self.dqn_target,
                 experiences=experiences,
                 gamma=gamma,
+            )
+        else:
+            return dqn_utils.calculate_R2D1_loss(
+                model=self.dqn,
+                target_model=self.dqn_target,
+                experiences=experiences,
+                gamma=gamma,
+                burn_in_step=self.hyper_params.burn_in_step,
             )
 
     def update_model(self) -> Tuple[torch.Tensor, ...]:
@@ -291,7 +274,7 @@ class DQNAgent(Agent):
         loss = dq_loss + q_regular
 
         self.dqn_optim.zero_grad()
-        loss.backward()
+        loss.backward(retain_graph=True)
         clip_grad_norm_(self.dqn.parameters(), self.hyper_params.gradient_clip)
         self.dqn_optim.step()
 

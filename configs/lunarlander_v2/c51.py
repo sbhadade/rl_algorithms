@@ -23,7 +23,7 @@ agent = dict(
         per_beta=0.4,
         per_eps=1e-6,
         # Distributional Q function
-        use_dist_q="DQN",
+        use_dist_q="C51",
         # Epsilon Greedy
         max_epsilon=1.0,
         min_epsilon=0.01,  # openai baselines: 0.01
@@ -31,9 +31,14 @@ agent = dict(
     ),
     backbone=dict(),
     head=dict(
-        type="DuelingMLP",
+        type="C51DuelingMLP",
         configs=dict(
-            hidden_sizes=[128, 64], use_noisy_net=False, output_activation=identity,
+            hidden_sizes=[128, 64],
+            use_noisy_net=False,
+            v_min=-300,
+            v_max=300,
+            atom_size=1530,
+            output_activation=identity,
         ),
     ),
     optim_cfg=dict(lr_dqn=1e-4, weight_decay=1e-7, adam_eps=1e-8),

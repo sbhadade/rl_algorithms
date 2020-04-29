@@ -133,9 +133,21 @@ class LstmPrioritizedReplayBuffer(LstmReplayBuffer):
         if torch.cuda.is_available():
             weights = weights.cuda(non_blocking=True)
 
-        states, actions, rewards, hidden_states, dones = super().sample(indices)
+        states, actions, rewards, hidden_states, dones, lengths = super().sample(
+            indices
+        )
 
-        return states, actions, rewards, hidden_states, dones, weights, indices, eps_d
+        return (
+            states,
+            actions,
+            rewards,
+            hidden_states,
+            dones,
+            lengths,
+            weights,
+            indices,
+            eps_d,
+        )
 
     def update_priorities(self, indices: list, priorities: np.ndarray):
         """Update priorities of sampled transitions."""

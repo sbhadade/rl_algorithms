@@ -1,4 +1,4 @@
-"""Config for DQN on LunarLander-v2.
+"""Config for DQN on CartPole-v1.
 
 - Author: Kyunghwan Kim
 - Contact: kh.kim@medipixel.io
@@ -10,9 +10,9 @@ agent = dict(
     hyper_params=dict(
         gamma=0.99,
         tau=5e-3,
-        buffer_size=int(1e5),  # openai baselines: int(1e4)
+        buffer_size=int(8e2),  # openai baselines: int(1e4)
         batch_size=64,  # openai baselines: 32
-        update_starts_from=int(1e4),  # openai baselines: int(1e4)
+        update_starts_from=int(5e2),  # openai baselines: int(1e4)
         multiple_update=1,  # multiple learning updates
         train_freq=1,  # in openai baselines, train_freq = 4
         gradient_clip=10.0,  # dueling: 10.0
@@ -27,13 +27,13 @@ agent = dict(
         # Epsilon Greedy
         max_epsilon=1.0,
         min_epsilon=0.01,  # openai baselines: 0.01
-        epsilon_decay=1e-5,  # openai baselines: 1e-7 / 1e-1
+        epsilon_decay=1e-4,  # openai baselines: 1e-7 / 1e-1
     ),
     backbone=dict(),
     head=dict(
         type="DuelingMLP",
         configs=dict(
-            hidden_sizes=[128, 64], use_noisy_net=False, output_activation=identity,
+            hidden_sizes=[128, 128], use_noisy_net=False, output_activation=identity,
         ),
     ),
     optim_cfg=dict(lr_dqn=1e-4, weight_decay=1e-7, adam_eps=1e-8),

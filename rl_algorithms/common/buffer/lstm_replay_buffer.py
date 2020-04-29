@@ -58,17 +58,18 @@ class LstmReplayBuffer:
         self.init_action = None
         self.init_hidden = None
 
+        self.local_obs_buf: np.ndarray = None
+        self.local_acts_buf: np.ndarray = None
+        self.local_rews_buf: np.ndarray = None
+        self.local_hiddens_buf: torch.Tensor = None
+        self.local_done_buf: np.ndarray = None
+
         self.obs_buf: np.ndarray = None
         self.acts_buf: np.ndarray = None
         self.rews_buf: np.ndarray = None
         self.hiddens_buf: torch.Tensor = None
         self.done_buf: np.ndarray = None
-
-        self.global_obs_buf: np.ndarray = None
-        self.global_acts_buf: np.ndarray = None
-        self.global_rews_buf: np.ndarray = None
-        self.global_hiddens_buf: torch.Tensor = None
-        self.global_done_buf: np.ndarray = None
+        self.length_buf: np.ndarray = None
 
         self.n_step_buffer: Deque = deque(maxlen=n_step)
         self.n_step = n_step
@@ -89,7 +90,7 @@ class LstmReplayBuffer:
         transition: Tuple[
             np.ndarray, np.ndarray, torch.Tensor, float, np.ndarray, bool
         ],
-    ) -> Tuple[Any, ...]:
+    ) -> Tuple[Any, ...]:  # delete here
         """Add a new experience to memory.
         If the buffer is empty, it is respectively initialized by size of arguments.
         """
@@ -107,23 +108,34 @@ class LstmReplayBuffer:
         reward, _, done = get_n_step_info(self.n_step_buffer, self.gamma)
         curr_state, action, hidden_state = self.n_step_buffer[0][:3]
 
-        self.obs_buf[self.idx] = curr_state
-        self.acts_buf[self.idx] = action
-        self.rews_buf[self.idx] = reward
-        self.hiddens_buf[self.idx] = hidden_state
-        self.done_buf[self.idx] = done
+        self.local_obs_buf[self.idx] = curr_state
+        self.local_acts_buf[self.idx] = action
+        self.local_rews_buf[self.idx] = reward
+        self.local_hiddens_buf[self.idx] = hidden_state
+        self.local_done_buf[self.idx] = done
 
         self.idx += 1
         if done and self.idx < self.sequence_size:
-            self._initialize_local_buffers()
-            self.idx = 0
+            self.length_buf[self.episode_idx] = self.idx
+            while self.idx < self.sequence_size:
+                self.local_obs_buf[self.idx] = np.zeros(self.init_state.size)
+                self.local_acts_buf[self.idx] = np.zeros(self.init_action.size)
+                self.local_rews_buf[self.idx] = 0
+                self.local_hiddens_buf[self.idx] = torch.zeros(
+                    self.init_hidden.shape
+                ).to(device)
+                self.local_done_buf[self.idx] = False
+                self.idx += 1
 
         if self.idx % self.sequence_size == 0:
-            self.global_obs_buf[self.episode_idx] = self.obs_buf
-            self.global_acts_buf[self.episode_idx] = self.acts_buf
-            self.global_rews_buf[self.episode_idx] = self.rews_buf
-            self.global_hiddens_buf[self.episode_idx] = self.hiddens_buf
-            self.global_done_buf[self.episode_idx] = self.done_buf
+            self.obs_buf[self.episode_idx] = self.local_obs_buf
+            self.acts_buf[self.episode_idx] = self.local_acts_buf
+            self.rews_buf[self.episode_idx] = self.local_rews_buf
+            self.hiddens_buf[self.episode_idx] = self.local_hiddens_buf
+            self.done_buf[self.episode_idx] = self.local_done_buf
+            if self.length_buf[self.episode_idx] == 0:
+                self.length_buf[self.episode_idx] = self.sequence_size
+
             self.idx = self.overlap_size
             self.episode_idx += 1
             self._overlap_local_buffers()
@@ -149,11 +161,12 @@ class LstmReplayBuffer:
         if indices is None:
             indices = np.random.choice(len(self), size=self.batch_size, replace=False)
 
-        states = torch.FloatTensor(self.global_obs_buf[indices]).to(device)
-        actions = torch.FloatTensor(self.global_acts_buf[indices]).to(device)
-        rewards = torch.FloatTensor(self.global_rews_buf[indices]).to(device)
-        hidden_state = torch.FloatTensor(self.global_hiddens_buf[indices]).to(device)
-        dones = torch.FloatTensor(self.global_done_buf[indices]).to(device)
+        states = torch.FloatTensor(self.obs_buf[indices]).to(device)
+        actions = torch.FloatTensor(self.acts_buf[indices]).to(device)
+        rewards = torch.FloatTensor(self.rews_buf[indices]).to(device)
+        hidden_state = self.hiddens_buf[indices]
+        dones = torch.FloatTensor(self.done_buf[indices]).to(device)
+        lengths = self.length_buf[indices]
 
         if torch.cuda.is_available():
             states = states.cuda(non_blocking=True)
@@ -162,38 +175,38 @@ class LstmReplayBuffer:
             hidden_state = hidden_state.cuda(non_blocking=True)
             dones = dones.cuda(non_blocking=True)
 
-        return states, actions, rewards, hidden_state, dones
+        return states, actions, rewards, hidden_state, dones, lengths
 
     def _initialize_local_buffers(self):
-        self.obs_buf = np.zeros(
+        self.local_obs_buf = np.zeros(
             [self.sequence_size] + list(self.init_state.shape),
             dtype=self.init_state.dtype,
         )
-        self.acts_buf = np.zeros(
+        self.local_acts_buf = np.zeros(
             [self.sequence_size] + list(self.init_action.shape),
             dtype=self.init_action.dtype,
         )
-        self.hiddens_buf = torch.zeros(
+        self.local_hiddens_buf = torch.zeros(
             [self.sequence_size] + list(self.init_hidden.shape),
             dtype=self.init_hidden.dtype,
         )
-        self.rews_buf = np.zeros([self.sequence_size], dtype=float)
+        self.local_rews_buf = np.zeros([self.sequence_size], dtype=float)
 
-        self.done_buf = np.zeros([self.sequence_size], dtype=float)
+        self.local_done_buf = np.zeros([self.sequence_size], dtype=float)
 
     def _overlap_local_buffers(self):
-        overlap_obs_buf = self.obs_buf[-self.overlap_size :]
-        overlap_acts_buf = self.acts_buf[-self.overlap_size :]
-        overlap_hiddens_buf = self.hiddens_buf[-self.overlap_size :]
-        overlap_rews_buf = self.rews_buf[-self.overlap_size :]
-        overlap_done_buf = self.done_buf[-self.overlap_size :]
+        overlap_obs_buf = self.local_obs_buf[-self.overlap_size :]
+        overlap_acts_buf = self.local_acts_buf[-self.overlap_size :]
+        overlap_hiddens_buf = self.local_hiddens_buf[-self.overlap_size :]
+        overlap_rews_buf = self.local_rews_buf[-self.overlap_size :]
+        overlap_done_buf = self.local_done_buf[-self.overlap_size :]
 
         self._initialize_local_buffers()
-        self.obs_buf[: self.overlap_size] = overlap_obs_buf
-        self.acts_buf[: self.overlap_size] = overlap_acts_buf
-        self.hiddens_buf[: self.overlap_size] = overlap_hiddens_buf
-        self.rews_buf[: self.overlap_size] = overlap_rews_buf
-        self.done_buf[: self.overlap_size] = overlap_done_buf
+        self.local_obs_buf[: self.overlap_size] = overlap_obs_buf
+        self.local_acts_buf[: self.overlap_size] = overlap_acts_buf
+        self.local_hiddens_buf[: self.overlap_size] = overlap_hiddens_buf
+        self.local_rews_buf[: self.overlap_size] = overlap_rews_buf
+        self.local_done_buf[: self.overlap_size] = overlap_done_buf
 
     def _initialize_buffers(
         self, state: np.ndarray, action: np.ndarray, hidden: torch.Tensor
@@ -204,25 +217,23 @@ class LstmReplayBuffer:
         self.init_action = action
         self.init_hidden = hidden
 
-        self.global_obs_buf = np.zeros(
+        self.obs_buf = np.zeros(
             [self.buffer_size] + [self.sequence_size] + list(state.shape),
             dtype=state.dtype,
         )
-        self.global_acts_buf = np.zeros(
+        self.acts_buf = np.zeros(
             [self.buffer_size] + [self.sequence_size] + list(action.shape),
             dtype=action.dtype,
         )
-        self.global_hiddens_buf = torch.zeros(
+        self.hiddens_buf = torch.zeros(
             [self.buffer_size] + [self.sequence_size] + list(hidden.shape),
             dtype=hidden.dtype,
-        )
-        self.global_rews_buf = np.zeros(
-            [self.buffer_size] + [self.sequence_size], dtype=float
-        )
+        ).to(device)
+        self.rews_buf = np.zeros([self.buffer_size] + [self.sequence_size], dtype=float)
 
-        self.global_done_buf = np.zeros(
-            [self.buffer_size] + [self.sequence_size], dtype=float
-        )
+        self.done_buf = np.zeros([self.buffer_size] + [self.sequence_size], dtype=float)
+
+        self.length_buf = np.zeros([self.buffer_size], dtype=int)
 
         self._initialize_local_buffers()
 

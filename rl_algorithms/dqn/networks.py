@@ -23,6 +23,25 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 @HEADS.register_module
+class DuelingHead(nn.Module):
+    def __init__(
+        self, configs: ConfigDict, hidden_activation: Callable = F.relu,
+    ):
+        super(DuelingHead, self).__init__()
+        self.rnn_layer = nn.GRU(
+            configs.input_size, configs.rnn_hidden_size, batch_first=True
+        )
+        configs.input_size = configs.rnn_hidden_size
+        self.fc_layer = DuelingMLP(configs, hidden_activation)
+
+    def forward(self, x: torch.Tensor, hidden: torch.Tensor) -> torch.Tensor:
+
+        x, hidden = self.rnn_layer(x, hidden)
+        x = self.fc_layer.forward(x)
+        return x, hidden
+
+
+@HEADS.register_module
 class DuelingMLP(MLP, NoisyMLPHandler):
     """Multilayer perceptron with dueling construction."""
 
