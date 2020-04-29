@@ -5,6 +5,7 @@ from .bc.ddpg_agent import BCDDPGAgent
 from .bc.her import LunarLanderContinuousHER, ReacherHER
 from .bc.sac_agent import BCSACAgent
 from .ddpg.agent import DDPGAgent
+from .distillation.dqn_agent import DistillationDQN
 from .dqn.agent import DQNAgent
 from .fd.ddpg_agent import DDPGfDAgent
 from .fd.dqn_agent import DQfDAgent
@@ -34,4 +35,5 @@ __all__ = [
     "build_her",
     "CNN",
     "ResNet",
+    "DistillationDQN",
 ]
