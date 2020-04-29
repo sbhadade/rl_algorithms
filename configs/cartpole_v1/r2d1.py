@@ -23,9 +23,9 @@ agent = dict(
         per_beta=0.4,
         per_eps=1e-6,
         # R2D1
-        sequence_size=32,
-        overlap_size=16,
-        burn_in_step=16,
+        sequence_size=16,
+        overlap_size=8,
+        burn_in_step=8,
         # Distributional Q function
         use_dist_q="R2D1",
         # Epsilon Greedy
@@ -35,12 +35,13 @@ agent = dict(
     ),
     backbone=dict(),
     head=dict(
-        type="DuelingHead",
-        configs=dict(
-            rnn_hidden_size=64,
-            hidden_sizes=[128, 64],
-            use_noisy_net=False,
-            output_activation=identity,
+        type="LSTMHead",
+        rnn_hidden_size=72,
+        mlp_configs=dict(
+            type="DuelingMLP",
+            configs=dict(
+                hidden_sizes=[128, 64], use_noisy_net=False, output_activation=identity,
+            ),
         ),
     ),
     optim_cfg=dict(lr_dqn=1e-4, weight_decay=1e-7, adam_eps=1e-8),

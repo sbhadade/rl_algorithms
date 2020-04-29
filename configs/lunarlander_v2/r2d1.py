@@ -35,12 +35,13 @@ agent = dict(
     ),
     backbone=dict(),
     head=dict(
-        type="DuelingHead",
-        configs=dict(
-            rnn_hidden_size=64,
-            hidden_sizes=[128, 64],
-            use_noisy_net=False,
-            output_activation=identity,
+        type="LSTMHead",
+        rnn_hidden_size=72,
+        mlp_configs=dict(
+            type="DuelingMLP",
+            configs=dict(
+                hidden_sizes=[128, 64], use_noisy_net=False, output_activation=identity,
+            ),
         ),
     ),
     optim_cfg=dict(lr_dqn=1e-4, weight_decay=1e-7, adam_eps=1e-8),

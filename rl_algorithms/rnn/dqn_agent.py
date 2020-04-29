@@ -63,8 +63,8 @@ class R2D1Agent(DQNAgent):
     def _init_network(self):
         """Initialize networks and optimizers."""
 
-        self.head_cfg.configs.state_size = self.state_dim
-        self.head_cfg.configs.output_size = self.action_dim
+        self.head_cfg.mlp_configs.configs.state_size = self.state_dim
+        self.head_cfg.mlp_configs.configs.output_size = self.action_dim
 
         self.dqn = BaseNetwork(self.backbone_cfg, self.head_cfg).to(device)
         self.dqn_target = BaseNetwork(self.backbone_cfg, self.head_cfg).to(device)
@@ -177,7 +177,7 @@ class R2D1Agent(DQNAgent):
         fraction = min(float(self.i_episode) / self.args.episode_num, 1.0)
         self.per_beta = self.per_beta + fraction * (1.0 - self.per_beta)
 
-        if self.head_cfg.configs.use_noisy_net:
+        if self.head_cfg.mlp_configs.configs.use_noisy_net:
             self.dqn.head.reset_noise()
             self.dqn_target.head.reset_noise()
 
@@ -196,7 +196,7 @@ class R2D1Agent(DQNAgent):
         for self.i_episode in range(1, self.args.episode_num + 1):
             state = self.env.reset()
             hidden_in = torch.zeros(
-                [1, 1, self.head_cfg.configs.rnn_hidden_size], dtype=torch.float
+                [1, 1, self.head_cfg.rnn_hidden_size], dtype=torch.float
             ).to(device)
             self.episode_step = 0
             self.sequence_step = 0
@@ -266,7 +266,7 @@ class R2D1Agent(DQNAgent):
 
         for i_episode in range(test_num):
             hidden_in = torch.zeros(
-                [1, 1, self.head_cfg.configs.rnn_hidden_size], dtype=torch.float
+                [1, 1, self.head_cfg.rnn_hidden_size], dtype=torch.float
             ).to(device)
             state = self.env.reset()
             done = False

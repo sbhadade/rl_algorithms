@@ -16,23 +16,23 @@ import torch.nn.functional as F
 from rl_algorithms.common.helper_functions import identity
 from rl_algorithms.common.networks.heads import MLP, init_layer_uniform
 from rl_algorithms.dqn.linear import NoisyLinearConstructor, NoisyMLPHandler
-from rl_algorithms.registry import HEADS
+from rl_algorithms.registry import HEADS, build_head
 from rl_algorithms.utils.config import ConfigDict
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 @HEADS.register_module
-class DuelingHead(nn.Module):
+class LSTMHead(nn.Module):
     def __init__(
-        self, configs: ConfigDict, hidden_activation: Callable = F.relu,
+        self, rnn_hidden_size: int, mlp_configs: ConfigDict,
     ):
-        super(DuelingHead, self).__init__()
+        super(LSTMHead, self).__init__()
         self.rnn_layer = nn.GRU(
-            configs.input_size, configs.rnn_hidden_size, batch_first=True
+            mlp_configs.configs.input_size, rnn_hidden_size, batch_first=True
         )
-        configs.input_size = configs.rnn_hidden_size
-        self.fc_layer = DuelingMLP(configs, hidden_activation)
+        mlp_configs.configs.input_size = rnn_hidden_size
+        self.fc_layer = build_head(mlp_configs)
 
     def forward(self, x: torch.Tensor, hidden: torch.Tensor) -> torch.Tensor:
 

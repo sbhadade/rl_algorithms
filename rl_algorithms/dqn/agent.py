@@ -94,7 +94,7 @@ class DQNAgent(Agent):
         self.use_conv = len(self.state_dim) > 1
         self.use_n_step = hyper_params.n_step > 1
 
-        if head.configs.use_noisy_net:
+        if head.mlp_configs.configs.use_noisy_net:
             self.max_epsilon = 0.0
             self.min_epsilon = 0.0
             self.epsilon = 0.0

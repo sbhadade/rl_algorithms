@@ -25,11 +25,13 @@ class BaseNetwork(nn.Module):
         super(BaseNetwork, self).__init__()
         if not backbone_cfg:
             self.backbone = identity
-            head_cfg.configs.input_size = head_cfg.configs.state_size[0]
+            head_cfg.mlp_configs.configs.input_size = head_cfg.mlp_configs.configs.state_size[
+                0
+            ]
         else:
             self.backbone = build_backbone(backbone_cfg)
-            head_cfg.configs.input_size = self.calculate_fc_input_size(
-                head_cfg.configs.state_size
+            head_cfg.mlp_configs.input_size = self.calculate_fc_input_size(
+                head_cfg.mlp_configs.state_size
             )
 
         self.head = build_head(head_cfg)
@@ -47,6 +49,9 @@ class BaseNetwork(nn.Module):
     def forward_(self, x: torch.Tensor, hidden: torch.Tensor = None):
         """Get output value for calculating loss."""
         x = self.backbone(x)
+        if len(x.shape) == 1:
+            x = x.reshape(1, 1, -1)
+        hidden = torch.transpose(hidden, 0, 1)
         if isinstance(self.head, IQNMLP):
             x = self.head.forward_(x, hidden)
         else:
